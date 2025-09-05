@@ -13,7 +13,7 @@ in the program. We have to do three things:
 
 We will break the whole design into two parts: (1) memory allocation (2) GC
 
-# Memory allocation
+# Part one: Memory allocation
 _malloc_ requests memory from the system kernel using `sbrk` or `mmap` system calls.
 When user calls _malloc_ for memory, _malloc_ first checks if there are enough memory
 in the the pool it manages. If the pool does not have enough memory, _malloc_ will 
@@ -22,20 +22,23 @@ make a system call to request more from the kernel.
 The memory pool which _malloc_ manages can be designed in various ways. A simple one
 used here is a circular linked list.
 
-# GC
+# Part two: GC
 There are three main memory areas in a program: heap, stack and BSS. If the variables
 in those areas points to the memory owned by _malloc_, that chunk of memory is in use.
 
 ```mermaid
 graph TD
-    A[Stack 变量] --> D[Malloc 分配的内存池]
-    B[Heap 变量] --> D[Malloc 分配的内存池]
-    C[BSS 段变量] --> D[Malloc 分配的内存池]
+    A[Stack Var] --> D[Malloc pool]
+    B[Heap Var] --> D[Malloc pool]
+    C[BSS Var] --> D[Malloc pool]
 
 ```
 
 ## GC_init
+TODO
 
 ## GC_malloc
+GC_malloc is the API provided to the users for memory allocation. See `Part one` for detail.
 
 ## GC_collect
+TODO

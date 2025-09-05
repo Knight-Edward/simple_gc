@@ -38,23 +38,98 @@ static header_t *usedp; // Points to first used block of memory
 // Add a block of memory to the free list
 static void add_to_free_list(header_t *bp) {
     // When user calls free, we add the block to the free list
+    // The free list is circularly linked
+    
+    header_t *p = freep;
+    for(; ; p = p->next) {
+        // Find the correct place to insert the block
+        if(p <= bp && bp <= p->next) {
+            break; // Found the correct place
+        }
+        if (p == freep) {
+            break; // Went around the list
+        }
+        // Now p points to the block before the correct place
+    }
+    // TODO: Coalesce adjacent free blocks
+    header_t *next = p->next;
+    p->next = bp;
+    bp->next = next;
+    freep = p; // Update freep to point to the new block
 }
 
 // Request more memory from the system
 // use sbrk
 static header_t *morecore(unsigned int nu) {
-    header_t *start_new_memory = (header_t *)sbrk(nu * sizeof(header_t));
+    // TODO: make sure nu is at least 1024 bytes
+    header_t *start_new_memory = (header_t *)sbrk((nu + 1) * sizeof(header_t));
     if(start_new_memory == (header_t *)-1) {
         return NULL; // sbrk failed
     }
     // add the new memory to the free list
+    start_new_memory->size = nu;
     add_to_free_list(start_new_memory);
     // return a pointer to the free list
     return freep; 
 }
 
-// Find a chunk from the free list and put it in the used list
-void * GC_malloc(unsigned size) { }
+/**
+ This is the GC version of malloc:
+1. Traverse the free list to find a block of memory that is large enough
+2. If the block is larger than needed, split it and return the remainder to the free list
+3. If no block is found, request more memory from the system
+4. Add the block to the used list
+5. Return a pointer to the memory after the header
+==============
+Example usage:
+@code
+    int *array = (int *)GC_malloc(sizeof(int) * 10);
+    for (int i = 0; i < 10; i++) {
+        array[i] = i;
+    }
+    // User does not call free
+    // GC will reclaim the memory when needed
+@end
+*/
+void * GC_malloc(unsigned size) {
+    unsigned int nunits;
+    header_t *p, *prevp;
+
+    // Calculate the number of header-sized units needed
+    nunits = (size + sizeof(header_t) - 1) / sizeof(header_t) + 1;
+
+    if((prevp = freep) == NULL) { // No free list yet
+        base.next = freep = prevp = &base;
+        base.size = 0;
+    }
+
+    for(p = prevp->next; ; prevp = p, p = p->next) {
+        if(p->size >= nunits) { // Found a block large enough
+            if(p->size == nunits) { // Exact fit
+                // remove a memory block(held by p) from free list
+                prevp->next = p->next;
+            } else { // Allocate tail end
+                p->size -= nunits;
+                p += p->size; // Move pointer to the allocated block
+                p->size = nunits;
+            }
+            freep = prevp; // Update freep to point to the previous block
+
+            // memory block pointed to by p is now in use
+            // Add it to used list
+            p->next = usedp;
+            usedp = p;
+
+            return (void *)(p + 1); // Return pointer to memory after header
+        }
+        if(p == freep) { // Wrapped around free list
+            p = morecore(nunits);
+            if(p == NULL) {
+                return NULL; // No memory left
+            }
+        }
+    }
+}
 
 // Scan a region of memory and mark any items in the used list
 // mostly stack, BSS
