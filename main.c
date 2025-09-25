@@ -217,6 +217,10 @@ int main() {
 
 void test() {
   int *array = (int *)GC_malloc(sizeof(int) * 10);
+  if (array == NULL) {
+    fprintf(stderr, "GC_malloc failed\n");
+    exit(1);
+  }
   printf("Allocated array at %p\n", array);
 }
 
